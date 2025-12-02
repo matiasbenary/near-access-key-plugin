@@ -11,6 +11,7 @@ import type {
   NearWalletBase,
   WalletPlugin
 } from "@hot-labs/near-connect";
+import { AddKeyPermission } from "@hot-labs/near-connect/build/types/transactions";
 
 export const NearContext = createContext<any>(undefined);
 
@@ -137,6 +138,17 @@ export const AccessKeyPlugin: WalletPlugin = {
     const newPublicKey = keyPair.getPublicKey().toString();
     const privateKey = keyPair.toString();
 
+    allowance = allowance || "250000000000000000000000";
+    const permission = (wallet?.manifest?.id === "intear-wallet" ? {
+      receiver_id: contractId,
+      method_names: methodNames || [],
+      allowance,
+    } : {
+      receiverId: contractId,
+      methodNames: methodNames || [],
+      allowance,
+    }) as AddKeyPermission
+
     const result = await wallet.signAndSendTransaction({
       receiverId: accountId,
       actions: [
@@ -145,11 +157,7 @@ export const AccessKeyPlugin: WalletPlugin = {
           params: {
             publicKey: newPublicKey,
             accessKey: {
-              permission: {
-                receiverId: contractId,
-                methodNames: methodNames || [],
-                allowance,
-              },
+              permission,
             },
           },
         },
