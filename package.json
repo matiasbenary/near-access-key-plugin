@@ -1,0 +1,45 @@
+{
+  "name": "@near-access-key/plugin",
+  "version": "1.0.0",
+  "description": "NEAR access key plugin for seamless transaction signing with function call access keys",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && tsc --module esnext --outDir dist/esm",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "yarn clean && yarn build"
+  },
+  "keywords": [
+    "near",
+    "blockchain",
+    "access-key",
+    "wallet",
+    "transaction-signing"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=16.8.0"
+  },
+  "dependencies": {
+    "@near-js/providers": "^2.5.1",
+    "@near-js/accounts": "^2.5.1",
+    "@near-js/crypto": "^2.5.1",
+    "@near-js/signers": "^2.5.1",
+    "@near-js/transactions": "^2.5.1",
+    "@near-js/types": "^2.5.1",
+    "@near-js/utils": "^2.5.1",
+    "@near-js/keystores": "^2.5.1",
+    "@near-js/tokens": "^2.5.1",
+    "@hot-labs/near-connect": "^0.6.11"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "typescript": "^5.3.0"
+  }
+}
