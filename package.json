@@ -1,6 +1,6 @@
 {
   "name": "function-call-key-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Create and use function call keys for near-connect",
   "type": "module",
   "main": "dist/index.js",
@@ -23,6 +23,14 @@
     "transaction-signing"
   ],
   "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matiasbenary/near-access-key-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/matiasbenary/near-access-key-plugin/issues"
+  },
+  "homepage": "https://github.com/matiasbenary/near-access-key-plugin#readme",
   "license": "MIT",
   "peerDependencies": {
     "@hot-labs/near-connect": "^0.11.1",

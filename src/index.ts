@@ -20,7 +20,6 @@ export const NearContext = createContext<any>(undefined);
 const STORAGE_KEY = `access_key::plugin`;
 
 interface AccessKeyData {
-  accountId: string;
   privateKey: string;
   contractId: string;
   allowedMethods: string[];
@@ -51,10 +50,10 @@ const shouldUseAccessKey = (tx: SignAndSendTransactionParams): boolean => {
 };
 
 const signTransactionLocally = async (
+  accountId: string,
   tx: SignAndSendTransactionParams
 ): Promise<FinalExecutionOutcome> => {
   const keyData: AccessKeyData = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
-
   const rpcUrl =
     tx.network === "mainnet"
       ? "https://rpc.fastnear.com"
@@ -63,7 +62,7 @@ const signTransactionLocally = async (
 
   const keyPair = KeyPair.fromString(keyData.privateKey as any);
   const signer = new KeyPairSigner(keyPair);
-  const account = new Account(keyData.accountId, provider, signer);
+  const account = new Account(accountId, provider, signer);
 
   const transactionActions = tx.actions.map((action: ConnectorAction) => {
     if (action.type === "FunctionCall") {
@@ -94,16 +93,28 @@ export const FunctionCallKeyPlugin: WalletPlugin = {
   },
 
   async signAndSendTransaction(
+    this,
     params: SignAndSendTransactionParams,
     next: () => Promise<FinalExecutionOutcome>
   ): Promise<FinalExecutionOutcome> {
+    let accountId = params.signerId;
+    if (!accountId) {
+      // @ts-ignore
+      const accounts = await this.getAccounts();
+      accountId = accounts[0]?.accountId;
+      if (!accountId) {
+        throw new Error("No signed-in account found");
+      }
+    }
+
     if (shouldUseAccessKey(params)) {
-      return signTransactionLocally(params);
+      return signTransactionLocally(accountId, params);
     }
     return next();
   },
 
   async signAndSendTransactions(
+    this,
     params: SignAndSendTransactionsParams,
     next: () => Promise<FinalExecutionOutcome[]>
   ): Promise<FinalExecutionOutcome[]> {
@@ -111,10 +122,20 @@ export const FunctionCallKeyPlugin: WalletPlugin = {
       shouldUseAccessKey(tx)
     );
 
+    let accountId = params.signerId;
+    if (!accountId) {
+      // @ts-ignore
+      const accounts = await this.getAccounts();
+      accountId = accounts[0]?.accountId;
+      if (!accountId) {
+        throw new Error("No signed-in account found");
+      }
+    }
+
     if (allCanUseAccessKey) {
       const results: FinalExecutionOutcome[] = [];
       for (const tx of params.transactions) {
-        const result = await signTransactionLocally(tx);
+        const result = await signTransactionLocally(accountId, tx);
         results.push(result);
       }
       return results;
