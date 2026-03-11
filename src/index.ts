@@ -43,7 +43,7 @@ const shouldUseAccessKey = (tx: SignAndSendTransactionParams): boolean => {
 
   for (const action of tx.actions) {
     if (action.type !== "FunctionCall") return false;
-    if (!key.allowedMethods.includes(action.params.methodName!)) return false;
+    if (key.allowedMethods.length > 0 && !key.allowedMethods.includes(action.params.methodName!)) return false;
   }
 
   return true;
@@ -159,8 +159,8 @@ export const FunctionCallKeyPlugin: WalletPlugin = {
       STORAGE_KEY,
       JSON.stringify({
         privateKey,
-        contractId: contractId,
-        allowedMethods: methodNames,
+        contractId,
+        allowedMethods: methodNames || [],
         allowance: resolvedAllowance,
       })
     );
