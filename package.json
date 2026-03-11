@@ -1,15 +1,16 @@
 {
-  "name": "@near-access-key/plugin",
+  "name": "function-call-key-plugin",
   "version": "1.0.0",
-  "description": "NEAR access key plugin for seamless transaction signing with function call access keys",
+  "description": "Create and use function call keys for near-connect",
+  "type": "module",
   "main": "dist/index.js",
-  "module": "dist/index.esm.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc && tsc --module esnext --outDir dist/esm",
+    "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "prepublishOnly": "yarn clean && yarn build"
@@ -24,22 +25,16 @@
   "author": "",
   "license": "MIT",
   "peerDependencies": {
+    "@hot-labs/near-connect": "^0.11.1",
     "react": ">=16.8.0"
   },
   "dependencies": {
-    "@near-js/providers": "^2.5.1",
-    "@near-js/accounts": "^2.5.1",
-    "@near-js/crypto": "^2.5.1",
-    "@near-js/signers": "^2.5.1",
-    "@near-js/transactions": "^2.5.1",
-    "@near-js/types": "^2.5.1",
-    "@near-js/utils": "^2.5.1",
-    "@near-js/keystores": "^2.5.1",
-    "@near-js/tokens": "^2.5.1",
-    "@hot-labs/near-connect": "^0.6.11"
+    "near-api-js": "^7"
   },
   "devDependencies": {
+    "@hot-labs/near-connect": "^0.11.1",
     "@types/react": "^18.2.0",
+    "react": ">=16.8.0",
     "typescript": "^5.3.0"
   }
 }

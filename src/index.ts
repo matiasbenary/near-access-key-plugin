@@ -1,17 +1,19 @@
 import { createContext } from "react";
-import { JsonRpcProvider } from "@near-js/providers";
-import { Account } from "@near-js/accounts";
-import { KeyPair } from "@near-js/crypto";
-import { KeyPairSigner } from "@near-js/signers";
-import { actionCreators } from "@near-js/transactions";
-import type { FinalExecutionOutcome } from "@near-js/types";
+import {
+  JsonRpcProvider,
+  Account,
+  KeyPair,
+  KeyPairSigner,
+  actions,
+  nearToYocto,
+} from "near-api-js";
+import type { FinalExecutionOutcome } from "near-api-js";
 import type {
   SignAndSendTransactionParams,
   SignAndSendTransactionsParams,
-  NearWalletBase,
-  WalletPlugin
-} from "@hot-labs/near-connect";
-import { AddKeyPermission } from "@hot-labs/near-connect/build/types/transactions";
+} from "@hot-labs/near-connect/build/types";
+import type { WalletPlugin } from "@hot-labs/near-connect/build/types/plugin";
+import type { ConnectorAction } from "@hot-labs/near-connect/build/actions/types";
 
 export const NearContext = createContext<any>(undefined);
 
@@ -26,7 +28,6 @@ interface AccessKeyData {
 }
 
 export interface CreateAccessKeyParams {
-  wallet: NearWalletBase;
   contractId: string;
   methodNames?: string[];
   allowance?: string;
@@ -64,9 +65,9 @@ const signTransactionLocally = async (
   const signer = new KeyPairSigner(keyPair);
   const account = new Account(keyData.accountId, provider, signer);
 
-  const actions = tx.actions.map((action) => {
+  const transactionActions = tx.actions.map((action: ConnectorAction) => {
     if (action.type === "FunctionCall") {
-      return actionCreators.functionCall(
+      return actions.functionCall(
         action.params.methodName!,
         action.params.args,
         BigInt(action.params.gas || "30000000000000"),
@@ -78,14 +79,14 @@ const signTransactionLocally = async (
 
   const result = await account.signAndSendTransaction({
     receiverId: tx.receiverId,
-    actions,
+    actions: transactionActions,
   });
-  return result;
+  return result as unknown as FinalExecutionOutcome;
 };
 
-export const AccessKeyPlugin: WalletPlugin = {
+export const FunctionCallKeyPlugin: WalletPlugin = {
   async signOut(
-    params?: { network?: "mainnet" | "testnet" },
+    _: unknown,
     next?: () => Promise<void>
   ): Promise<void> {
     localStorage.removeItem(STORAGE_KEY);
@@ -122,61 +123,29 @@ export const AccessKeyPlugin: WalletPlugin = {
     return next();
   },
 
-  async createAccessKey({
-    wallet,
+  createAccessKey({
     contractId,
     methodNames,
     allowance,
-  }: CreateAccessKeyParams): Promise<FinalExecutionOutcome> {
-    allowance = allowance || "250000000000000000000000";
-    const walletAccounts = await wallet.getAccounts();
-    console.log(wallet.manifest.id);
-
-    const accountId = walletAccounts[0]?.accountId;
+  }: CreateAccessKeyParams): string {
+    const resolvedAllowance = allowance ?? nearToYocto(0.25).toString();
 
     const keyPair = KeyPair.fromRandom("ed25519");
     const newPublicKey = keyPair.getPublicKey().toString();
     const privateKey = keyPair.toString();
 
-    allowance = allowance || "250000000000000000000000";
-    const permission = (wallet?.manifest?.id === "intear-wallet" ? {
-      receiver_id: contractId,
-      method_names: methodNames || [],
-      allowance,
-    } : {
-      receiverId: contractId,
-      methodNames: methodNames || [],
-      allowance,
-    }) as AddKeyPermission
-
-    const result = await wallet.signAndSendTransaction({
-      receiverId: accountId,
-      actions: [
-        {
-          type: "AddKey",
-          params: {
-            publicKey: newPublicKey,
-            accessKey: {
-              permission,
-            },
-          },
-        },
-      ],
-    });
-
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
-        accountId,
         privateKey,
         contractId: contractId,
         allowedMethods: methodNames,
-        allowance: allowance || "250000000000000000000000",
+        allowance: resolvedAllowance,
       })
     );
 
-    return result;
+    return newPublicKey;
   },
 };
 
-export default AccessKeyPlugin;
+export default FunctionCallKeyPlugin;
