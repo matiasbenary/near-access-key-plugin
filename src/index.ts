@@ -76,6 +76,7 @@ const shouldUseAccessKey = (tx: SignAndSendTransactionParams): boolean => {
   for (const action of tx.actions) {
     if (action.type !== "FunctionCall") return false;
     if (key.methodNames.length > 0 && !key.methodNames.includes(action.params.methodName!)) return false;
+    if (BigInt(action.params.deposit || "0") > 0n) return false;
   }
 
   return true;
