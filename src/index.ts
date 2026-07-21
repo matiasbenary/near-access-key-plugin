@@ -76,6 +76,9 @@ const shouldUseAccessKey = (tx: SignAndSendTransactionParams): boolean => {
   for (const action of tx.actions) {
     if (action.type !== "FunctionCall") return false;
     if (key.methodNames.length > 0 && !key.methodNames.includes(action.params.methodName!)) return false;
+    // function-call keys cannot attach deposits, the protocol rejects the tx
+    // with AccessKeyDepositWithFunctionCallActionError; route to the wallet instead
+    if (BigInt(action.params.deposit || "0") > 0n) return false;
   }
 
   return true;
