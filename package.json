@@ -1,6 +1,6 @@
 {
   "name": "function-call-key-plugin",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Automatically create and use function-call keys with near-connect",
   "type": "module",
   "main": "dist/index.js",
