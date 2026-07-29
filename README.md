@@ -16,7 +16,7 @@ npm install function-call-key-plugin
 
 ## Exports
 
-- `createAccessKeyPlugin(provider)`
+- `createAccessKeyPlugin(params)`
 
 ## Quick Start
 
@@ -34,23 +34,24 @@ const connector = new NearConnector({
 
 const accessKeyPlugin = createAccessKeyPlugin({
   network: connector.network,
-  // providers: connector.providers
+  // providers: connector.providers,
+  signIn: {
+    contractId,
+    methodNames,
+    allowance
+  }
 });
 
 // Register the plugin instance.
-connector.use(accessKeyPlugin);
+await connector.use(accessKeyPlugin);
 
-/// Use the plugin to create an access key on connect,
-// this key will be used for signing transactions that match the specified permissions,
-await connector.connect({
-  addFunctionCallKey: {
-    contractId,
-    allowMethods: { anyMethod: false, methodNames },
-    gasAllowance: { kind: "limited", amount: allowance },
-    publicKey: accessKeyPlugin.createLocalKeyFor({ contractId, methodNames, allowance })
-  }
-});
+// The plugin adds the configured function-call key parameters to wallet sign-in.
+await connector.connect();
 ```
+
+When `signIn` is configured, the plugin creates a local key during sign-in and
+adds its public key and permissions to the wallet request. The private key is
+stored only after sign-in succeeds, together with the returned account ID.
 
 ## Local Signing Rules
 
@@ -58,21 +59,27 @@ The plugin will sign a transaction locally only when all conditions are true:
 
 - `tx.receiverId` matches the configured `contractId`
 - Every action is a `FunctionCall`
-- If `allowedMethods` is non-empty, each function being called is in the allowed list
+- If `methodNames` is non-empty, each function being called is in the allowed list
 
-If any condition fails, it calls the provided `next()` handler and uses normal wallet signing.
+If any condition fails, it calls the provided `next()` handler and uses normal
+wallet signing. If local signing fails, the plugin also falls back to the
+provided `next()` handler.
+
+## Sign-in configuration
+
+```ts
+createAccessKeyPlugin({
+  network,
+  providers,
+  signIn: {
+    contractId,
+    methodNames: [], // Empty allows every method.
+    allowance: "250000000000000000000000" // Optional; defaults to 0.25 NEAR.
+  }
+});
+```
 
 ## Plugin Methods
-
-### `createLocalKeyFor(params): string`
-
-Creates a random `ed25519` key pair, stores the private key + policy in local storage, and returns the public key string.
-
-Params:
-
-- `contractId: string`
-- `methodNames: string[]` - use `[]` to allow all methods
-- `allowance: string` -in yoctoNEAR, e.g. `nearToYocto(0.25)` or "0" for unlimited allowance
 
 ### `signAndSendTransaction(params, next)`
 
@@ -84,15 +91,17 @@ For batch calls, signs locally only if every transaction is eligible.
 
 ### `signOut(_, next)`
 
-Clears `access_key::plugin` from local storage, then calls `next()`.
+After wallet sign-out succeeds, clears the account-specific keys from local
+storage for the accounts that were signed in.
 
 ## Storage
 
-Stored in browser `localStorage` at `access_key::plugin`:
+Stored in browser `localStorage` at
+`access_key::plugin::<network>::<accountId>`:
 
 - `privateKey`
 - `contractId`
-- `allowedMethods`
+- `methodNames`
 
 ## Security Notes
 
