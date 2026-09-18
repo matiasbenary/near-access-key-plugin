@@ -37,8 +37,8 @@ const accessKeyPlugin = createAccessKeyPlugin({
   // providers: connector.providers,
   signIn: {
     contractId,
-    methodNames,
-    allowance
+    methodNames, // default: [], allows to call all methods
+    allowance // default: "250000000000000000000000" (0.25 NEAR)
   }
 });
 
@@ -60,53 +60,16 @@ The plugin will sign a transaction locally only when all conditions are true:
 - `tx.receiverId` matches the configured `contractId`
 - Every action is a `FunctionCall`
 - If `methodNames` is non-empty, each function being called is in the allowed list
+- Every function call has a zero deposit
 
 If any condition fails, it calls the provided `next()` handler and uses normal
-wallet signing. If local signing fails, the plugin also falls back to the
-provided `next()` handler.
+wallet signing. If the local key is out of allowance, the wallet handles the
+transaction instead. If the key no longer exists on-chain, the plugin also
+removes it from local storage before using the wallet. Other local signing
+errors are returned to the caller.
 
-## Sign-in configuration
-
-```ts
-createAccessKeyPlugin({
-  network,
-  providers,
-  signIn: {
-    contractId,
-    methodNames: [], // Empty allows every method.
-    allowance: "250000000000000000000000" // Optional; defaults to 0.25 NEAR.
-  }
-});
-```
-
-## Plugin Methods
-
-### `signAndSendTransaction(params, next)`
-
-Intercepts single transaction signing and attempts local signing when eligible.
-
-### `signAndSendTransactions(params, next)`
-
-For batch calls, signs locally only if every transaction is eligible.
-
-### `signOut(_, next)`
-
-After wallet sign-out succeeds, clears the account-specific keys from local
-storage for the accounts that were signed in.
-
-## Storage
-
-Stored in browser `localStorage` at
-`access_key::plugin::<network>::<accountId>`:
-
-- `privateKey`
-- `contractId`
-- `methodNames`
-
-## Security Notes
-
-- Private keys in `localStorage` should be treated as hot keys
-- Use limited allowance and method restrictions
+For batch calls, transactions completed locally are preserved and only the
+failed transaction and the remaining transactions are sent to the wallet.
 
 ## License
 

@@ -12,17 +12,21 @@ import type {
   KeyPairString,
   Provider,
 } from "near-api-js";
-import type {
-  Account as NearAccount,
-  SignInParams,
-  SignAndSendTransactionParams,
-  SignAndSendTransactionsParams,
-} from "@hot-labs/near-connect/build/types";
-import { nearActionsToConnectorActions } from "@hot-labs/near-connect/build/actions/index.js";
-import type { WalletPlugin } from "@hot-labs/near-connect/build/types/plugin";
+import {
+  nearActionsToConnectorActions,
+  type WalletPlugin,
+  type Account as NearAccount,
+  type SignAndSendTransactionParams,
+  type SignAndSendTransactionsParams,
+} from "@hot-labs/near-connect";
+import type { SignInParams } from "@hot-labs/near-connect/build/types";
+import {
+  AccessKeyDoesNotExistError,
+  AccessKeyNotEnoughAllowanceActionError,
+  AccessKeyNotFoundActionError,
+} from "near-api-js/rpc-errors";
 
 const DEFAULT_ALLOWANCE = "250000000000000000000000";
-const LEGACY_STORAGE_KEY = "access_key::plugin";
 
 interface AccessKeyData {
   privateKey: KeyPairString;
@@ -80,12 +84,8 @@ const removeStoredAccessKey = (
   accountId: string
 ): void => {
   if (typeof localStorage === "undefined") return;
+  console.log("Removing stored access key for account:", accountId);
   localStorage.removeItem(storageKeyFor(network, accountId));
-};
-
-const removeLegacyStoredAccessKey = (): void => {
-  if (typeof localStorage === "undefined") return;
-  localStorage.removeItem(LEGACY_STORAGE_KEY);
 };
 
 const shouldUseAccessKey = (
@@ -106,6 +106,23 @@ const shouldUseAccessKey = (
   }
 
   return true;
+};
+
+type RecoverableAccessKeyError = "missing" | "allowance";
+
+const recoverableAccessKeyError = (
+  error: unknown
+): RecoverableAccessKeyError | null => {
+  if (error instanceof AccessKeyNotEnoughAllowanceActionError) {
+    return "allowance";
+  }
+  if (
+    error instanceof AccessKeyDoesNotExistError ||
+    error instanceof AccessKeyNotFoundActionError
+  ) {
+    return "missing";
+  }
+  return null;
 };
 
 const signTransactionLocally = async (
@@ -147,7 +164,7 @@ const resolveProvider = ({
     testnet: [],
     mainnet: [],
   },
-}: CreateAccessKeyPluginParams): FailoverRpcProvider => {
+}: CreateAccessKeyPluginParams): Provider => {
   const defaultProviders = {
     mainnet: ["https://free.rpc.fastnear.com"],
     testnet: ["https://rpc.testnet.fastnear.com"],
@@ -155,6 +172,11 @@ const resolveProvider = ({
   const networkProviders = providers[network]?.length
     ? providers[network]
     : defaultProviders[network];
+
+  if (networkProviders.length === 1) {
+    return new JsonRpcProvider({ url: networkProviders[0] });
+  }
+
   return new FailoverRpcProvider(
     networkProviders.map((url) => new JsonRpcProvider({ url }))
   );
@@ -191,8 +213,6 @@ const resolveSignerId = async (
 export const createAccessKeyPlugin = (
   params: CreateAccessKeyPluginParams
 ): WalletPlugin => {
-  removeLegacyStoredAccessKey();
-
   const network = params.network;
   const provider = resolveProvider(params);
   const signInParams = params.signIn
@@ -283,7 +303,13 @@ export const createAccessKeyPlugin = (
           keyData,
           params
         );
-      } catch {
+      } catch (error) {
+        const recoverableError = recoverableAccessKeyError(error);
+        if (!recoverableError) throw error;
+
+        if (recoverableError === "missing") {
+          removeStoredAccessKey(network, accountId);
+        }
         return next();
       }
     },
@@ -315,8 +341,21 @@ export const createAccessKeyPlugin = (
           results.push(result);
         }
         return results;
-      } catch {
-        return next();
+      } catch (error) {
+        const recoverableError = recoverableAccessKeyError(error);
+        if (!recoverableError) throw error;
+
+        if (recoverableError === "missing") {
+          removeStoredAccessKey(network, accountId);
+        }
+
+        const transactions = params.transactions;
+        params.transactions = transactions.slice(results.length);
+        try {
+          return [...results, ...(await next())];
+        } finally {
+          params.transactions = transactions;
+        }
       }
     },
   };
