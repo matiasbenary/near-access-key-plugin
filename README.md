@@ -70,7 +70,3 @@ errors are returned to the caller.
 
 For batch calls, transactions completed locally are preserved and only the
 failed transaction and the remaining transactions are sent to the wallet.
-
-## License
-
-MIT
