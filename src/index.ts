@@ -5,6 +5,7 @@ import {
   KeyPairSigner,
   actions,
   FailoverRpcProvider,
+  FailoverRpcError,
 } from "near-api-js";
 import type {
   Action,
@@ -108,23 +109,6 @@ const shouldUseAccessKey = (
   return true;
 };
 
-type RecoverableAccessKeyError = "missing" | "allowance";
-
-const recoverableAccessKeyError = (
-  error: unknown
-): RecoverableAccessKeyError | null => {
-  if (error instanceof AccessKeyNotEnoughAllowanceActionError) {
-    return "allowance";
-  }
-  if (
-    error instanceof AccessKeyDoesNotExistError ||
-    error instanceof AccessKeyNotFoundActionError
-  ) {
-    return "missing";
-  }
-  return null;
-};
-
 const signTransactionLocally = async (
   accountId: string,
   provider: Provider,
@@ -160,22 +144,15 @@ const signTransactionLocally = async (
 
 const resolveProvider = ({
   network,
-  providers = {
-    testnet: [],
-    mainnet: [],
-  },
-}: CreateAccessKeyPluginParams): Provider => {
+  providers,
+}: CreateAccessKeyPluginParams): FailoverRpcProvider => {
   const defaultProviders = {
     mainnet: ["https://free.rpc.fastnear.com"],
     testnet: ["https://rpc.testnet.fastnear.com"],
   };
-  const networkProviders = providers[network]?.length
+  const networkProviders = providers?.[network]?.length
     ? providers[network]
     : defaultProviders[network];
-
-  if (networkProviders.length === 1) {
-    return new JsonRpcProvider({ url: networkProviders[0] });
-  }
 
   return new FailoverRpcProvider(
     networkProviders.map((url) => new JsonRpcProvider({ url }))
@@ -222,6 +199,20 @@ export const createAccessKeyPlugin = (
       allowance: params.signIn.allowance ?? DEFAULT_ALLOWANCE,
     }
     : null;
+
+  const handleAccessKeyError = (error: unknown, accountId: string): void => {
+    const errors = error instanceof FailoverRpcError ? error.errors : [error];
+    if (errors.some((e) =>
+      e instanceof AccessKeyDoesNotExistError ||
+      e instanceof AccessKeyNotFoundActionError
+    )) {
+      removeStoredAccessKey(network, accountId);
+    } else if (!errors.some((e) =>
+      e instanceof AccessKeyNotEnoughAllowanceActionError
+    )) {
+      throw error;
+    }
+  };
 
   return {
     async signIn(
@@ -304,12 +295,7 @@ export const createAccessKeyPlugin = (
           params
         );
       } catch (error) {
-        const recoverableError = recoverableAccessKeyError(error);
-        if (!recoverableError) throw error;
-
-        if (recoverableError === "missing") {
-          removeStoredAccessKey(network, accountId);
-        }
+        handleAccessKeyError(error, accountId);
         return next();
       }
     },
@@ -342,12 +328,7 @@ export const createAccessKeyPlugin = (
         }
         return results;
       } catch (error) {
-        const recoverableError = recoverableAccessKeyError(error);
-        if (!recoverableError) throw error;
-
-        if (recoverableError === "missing") {
-          removeStoredAccessKey(network, accountId);
-        }
+        handleAccessKeyError(error, accountId);
 
         const transactions = params.transactions;
         params.transactions = transactions.slice(results.length);
